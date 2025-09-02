@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.mohini.learning</groupId>
+    <groupId>com.mohini</groupId>
     <artifactId>user-service</artifactId>
     <version>1.0-SNAPSHOT</version>
     <name>user-service</name>
