@@ -1,5 +1,8 @@
 package com.mohini.userservice.service;
 
+import com.mohini.userservice.exception.DuplicateUserException;
+import com.mohini.userservice.exception.UserNotFoundException;
+import com.mohini.userservice.exception.ValidationException;
 import com.mohini.userservice.model.User;
 import com.mohini.userservice.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,11 +31,11 @@ public class UserService {
     public User createUser(User user) {
         // Business validation
         if (userRepository.existsByEmail(user.getEmail())) {
-            throw new RuntimeException("User with email " + user.getEmail() + " already exists");
+            throw DuplicateUserException.withEmail(user.getEmail());
         }
         
         if (userRepository.existsByUsername(user.getUsername())) {
-            throw new RuntimeException("User with username " + user.getUsername() + " already exists");
+            throw DuplicateUserException.withUsername(user.getUsername());
         }
         
         // Set timestamps (though JPA will do this automatically)
@@ -77,18 +80,18 @@ public class UserService {
      */
     public User updateUser(Long id, User userDetails) {
         User existingUser = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+                .orElseThrow(() -> UserNotFoundException.withId(id));
         
         // Check if email is being changed and if new email already exists
         if (!existingUser.getEmail().equals(userDetails.getEmail()) && 
             userRepository.existsByEmail(userDetails.getEmail())) {
-            throw new RuntimeException("Email " + userDetails.getEmail() + " is already taken");
+            throw DuplicateUserException.withEmail(userDetails.getEmail());
         }
         
         // Check if username is being changed and if new username already exists
         if (!existingUser.getUsername().equals(userDetails.getUsername()) && 
             userRepository.existsByUsername(userDetails.getUsername())) {
-            throw new RuntimeException("Username " + userDetails.getUsername() + " is already taken");
+            throw DuplicateUserException.withUsername(userDetails.getUsername());
         }
         
         // Update fields
@@ -108,7 +111,7 @@ public class UserService {
      */
     public void deleteUser(Long id) {
         if (!userRepository.existsById(id)) {
-            throw new RuntimeException("User not found with id: " + id);
+            throw UserNotFoundException.withId(id);
         }
         userRepository.deleteById(id);
     }

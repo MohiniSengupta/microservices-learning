@@ -3,6 +3,7 @@ package com.mohini.userservice.controller;
 import com.mohini.userservice.dto.CreateUserRequest;
 import com.mohini.userservice.dto.UpdateUserRequest;
 import com.mohini.userservice.dto.UserResponse;
+import com.mohini.userservice.exception.UserNotFoundException;
 import com.mohini.userservice.model.User;
 import com.mohini.userservice.service.UserService;
 import jakarta.validation.Valid;
@@ -32,28 +33,22 @@ public class UserController {
      */
     @PostMapping
     public ResponseEntity<UserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
-        try {
-            // Convert DTO to Entity
-            User user = new User(
-                request.getUsername(),
-                request.getEmail(),
-                request.getPassword(),
-                request.getFirstName(),
-                request.getLastName()
-            );
-            
-            // Save user
-            User savedUser = userService.createUser(user);
-            
-            // Convert Entity to Response DTO
-            UserResponse response = convertToUserResponse(savedUser);
-            
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
-            
-        } catch (RuntimeException e) {
-            // In production, use proper exception handling
-            throw new RuntimeException("Failed to create user: " + e.getMessage());
-        }
+        // Convert DTO to Entity
+        User user = new User(
+            request.getUsername(),
+            request.getEmail(),
+            request.getPassword(),
+            request.getFirstName(),
+            request.getLastName()
+        );
+        
+        // Save user
+        User savedUser = userService.createUser(user);
+        
+        // Convert Entity to Response DTO
+        UserResponse response = convertToUserResponse(savedUser);
+        
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     /**
@@ -62,9 +57,9 @@ public class UserController {
      */
     @GetMapping("/{id}")
     public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
-        return userService.findUserById(id)
-                .map(user -> ResponseEntity.ok(convertToUserResponse(user)))
-                .orElse(ResponseEntity.notFound().build());
+        User user = userService.findUserById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+        return ResponseEntity.ok(convertToUserResponse(user));
     }
 
     /**
@@ -89,23 +84,18 @@ public class UserController {
     public ResponseEntity<UserResponse> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserRequest request) {
-        try {
-            // Create a temporary user with update data
-            User updateData = new User();
-            updateData.setUsername(request.getUsername());
-            updateData.setEmail(request.getEmail());
-            updateData.setFirstName(request.getFirstName());
-            updateData.setLastName(request.getLastName());
-            
-            // Update user
-            User updatedUser = userService.updateUser(id, updateData);
-            UserResponse response = convertToUserResponse(updatedUser);
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (RuntimeException e) {
-            throw new RuntimeException("Failed to update user: " + e.getMessage());
-        }
+        // Create a temporary user with update data
+        User updateData = new User();
+        updateData.setUsername(request.getUsername());
+        updateData.setEmail(request.getEmail());
+        updateData.setFirstName(request.getFirstName());
+        updateData.setLastName(request.getLastName());
+        
+        // Update user
+        User updatedUser = userService.updateUser(id, updateData);
+        UserResponse response = convertToUserResponse(updatedUser);
+        
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -114,12 +104,8 @@ public class UserController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
-        try {
-            userService.deleteUser(id);
-            return ResponseEntity.noContent().build();
-        } catch (RuntimeException e) {
-            throw new RuntimeException("Failed to delete user: " + e.getMessage());
-        }
+        userService.deleteUser(id);
+        return ResponseEntity.noContent().build();
     }
 
     /**
@@ -128,9 +114,9 @@ public class UserController {
      */
     @GetMapping("/email/{email}")
     public ResponseEntity<UserResponse> getUserByEmail(@PathVariable String email) {
-        return userService.findUserByEmail(email)
-                .map(user -> ResponseEntity.ok(convertToUserResponse(user)))
-                .orElse(ResponseEntity.notFound().build());
+        User user = userService.findUserByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("User not found with email: " + email));
+        return ResponseEntity.ok(convertToUserResponse(user));
     }
 
     /**
@@ -139,9 +125,9 @@ public class UserController {
      */
     @GetMapping("/username/{username}")
     public ResponseEntity<UserResponse> getUserByUsername(@PathVariable String username) {
-        return userService.findUserByUsername(username)
-                .map(user -> ResponseEntity.ok(convertToUserResponse(user)))
-                .orElse(ResponseEntity.notFound().build());
+        User user = userService.findUserByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException("User not found with username: " + username));
+        return ResponseEntity.ok(convertToUserResponse(user));
     }
 
     /**
