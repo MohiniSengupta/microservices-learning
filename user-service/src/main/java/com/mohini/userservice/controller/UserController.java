@@ -15,6 +15,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +31,9 @@ import java.util.stream.Collectors;
 @Tag(name = "User Management", description = "APIs for managing users in the system")
 public class UserController {
 
+    // Best Practice: Use static final logger with class name
+    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
+    
     private final UserService userService;
 
     @Autowired
@@ -80,22 +85,39 @@ public class UserController {
     public ResponseEntity<UserResponse> createUser(
         @Parameter(description = "User creation details", required = true)
         @Valid @RequestBody CreateUserRequest request) {
-        // Convert DTO to Entity
-        User user = new User(
-            request.getUsername(),
-            request.getEmail(),
-            request.getPassword(),
-            request.getFirstName(),
-            request.getLastName()
-        );
         
-        // Save user
-        User savedUser = userService.createUser(user);
+        // Best Practice: Log incoming request (but NOT sensitive data like password)
+        logger.info("Creating new user with username: {} and email: {}", 
+                   request.getUsername(), request.getEmail());
         
-        // Convert Entity to Response DTO
-        UserResponse response = convertToUserResponse(savedUser);
-        
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        try {
+            // Convert DTO to Entity
+            User user = new User(
+                request.getUsername(),
+                request.getEmail(),
+                request.getPassword(),
+                request.getFirstName(),
+                request.getLastName()
+            );
+            
+            // Save user
+            User savedUser = userService.createUser(user);
+            
+            // Best Practice: Log successful operation with user ID
+            logger.info("User created successfully with ID: {} for username: {}", 
+                       savedUser.getId(), savedUser.getUsername());
+            
+            // Convert Entity to Response DTO
+            UserResponse response = convertToUserResponse(savedUser);
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            
+        } catch (Exception e) {
+            // Best Practice: Log errors with context but not sensitive data
+            logger.error("Failed to create user with username: {} and email: {}. Error: {}", 
+                        request.getUsername(), request.getEmail(), e.getMessage());
+            throw e; // Re-throw to let GlobalExceptionHandler handle it
+        }
     }
 
     /**
@@ -124,9 +146,30 @@ public class UserController {
     public ResponseEntity<UserResponse> getUserById(
         @Parameter(description = "User ID", required = true, example = "1")
         @PathVariable Long id) {
-        User user = userService.findUserById(id)
-                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
-        return ResponseEntity.ok(convertToUserResponse(user));
+        
+        // Best Practice: Log the request with context
+        logger.info("Retrieving user with ID: {}", id);
+        
+        try {
+            User user = userService.findUserById(id)
+                    .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+            
+            // Best Practice: Log successful retrieval
+            logger.info("User retrieved successfully: ID={}, username={}", 
+                       user.getId(), user.getUsername());
+            
+            return ResponseEntity.ok(convertToUserResponse(user));
+            
+        } catch (UserNotFoundException e) {
+            // Best Practice: Log not found as WARN (not ERROR - it's expected sometimes)
+            logger.warn("User not found with ID: {}", id);
+            throw e;
+        } catch (Exception e) {
+            // Best Practice: Log unexpected errors
+            logger.error("Unexpected error retrieving user with ID: {}. Error: {}", 
+                        id, e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -135,12 +178,23 @@ public class UserController {
      */
     @GetMapping
     public ResponseEntity<List<UserResponse>> getAllUsers() {
-        List<User> users = userService.getAllUsers();
-        List<UserResponse> responses = users.stream()
-                .map(this::convertToUserResponse)
-                .collect(Collectors.toList());
+        logger.info("Retrieving all users");
         
-        return ResponseEntity.ok(responses);
+        try {
+            List<User> users = userService.getAllUsers();
+            List<UserResponse> responses = users.stream()
+                    .map(this::convertToUserResponse)
+                    .collect(Collectors.toList());
+            
+            // Best Practice: Log the count of results
+            logger.info("Retrieved {} users successfully", responses.size());
+            
+            return ResponseEntity.ok(responses);
+            
+        } catch (Exception e) {
+            logger.error("Failed to retrieve all users. Error: {}", e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -151,18 +205,38 @@ public class UserController {
     public ResponseEntity<UserResponse> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserRequest request) {
-        // Create a temporary user with update data
-        User updateData = new User();
-        updateData.setUsername(request.getUsername());
-        updateData.setEmail(request.getEmail());
-        updateData.setFirstName(request.getFirstName());
-        updateData.setLastName(request.getLastName());
         
-        // Update user
-        User updatedUser = userService.updateUser(id, updateData);
-        UserResponse response = convertToUserResponse(updatedUser);
+        // Best Practice: Log update request with context
+        logger.info("Updating user with ID: {}, new username: {}, new email: {}", 
+                   id, request.getUsername(), request.getEmail());
         
-        return ResponseEntity.ok(response);
+        try {
+            // Create a temporary user with update data
+            User updateData = new User();
+            updateData.setUsername(request.getUsername());
+            updateData.setEmail(request.getEmail());
+            updateData.setFirstName(request.getFirstName());
+            updateData.setLastName(request.getLastName());
+            
+            // Update user
+            User updatedUser = userService.updateUser(id, updateData);
+            
+            // Best Practice: Log successful update
+            logger.info("User updated successfully: ID={}, username={}", 
+                       updatedUser.getId(), updatedUser.getUsername());
+            
+            UserResponse response = convertToUserResponse(updatedUser);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (UserNotFoundException e) {
+            logger.warn("User not found for update with ID: {}", id);
+            throw e;
+        } catch (Exception e) {
+            logger.error("Failed to update user with ID: {}. Error: {}", 
+                        id, e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -171,8 +245,24 @@ public class UserController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
-        userService.deleteUser(id);
-        return ResponseEntity.noContent().build();
+        logger.info("Deleting user with ID: {}", id);
+        
+        try {
+            userService.deleteUser(id);
+            
+            // Best Practice: Log successful deletion
+            logger.info("User deleted successfully with ID: {}", id);
+            
+            return ResponseEntity.noContent().build();
+            
+        } catch (UserNotFoundException e) {
+            logger.warn("User not found for deletion with ID: {}", id);
+            throw e;
+        } catch (Exception e) {
+            logger.error("Failed to delete user with ID: {}. Error: {}", 
+                        id, e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -181,9 +271,25 @@ public class UserController {
      */
     @GetMapping("/email/{email}")
     public ResponseEntity<UserResponse> getUserByEmail(@PathVariable String email) {
-        User user = userService.findUserByEmail(email)
-                .orElseThrow(() -> new UserNotFoundException("User not found with email: " + email));
-        return ResponseEntity.ok(convertToUserResponse(user));
+        logger.info("Retrieving user by email: {}", email);
+        
+        try {
+            User user = userService.findUserByEmail(email)
+                    .orElseThrow(() -> new UserNotFoundException("User not found with email: " + email));
+            
+            logger.info("User retrieved by email successfully: ID={}, username={}", 
+                       user.getId(), user.getUsername());
+            
+            return ResponseEntity.ok(convertToUserResponse(user));
+            
+        } catch (UserNotFoundException e) {
+            logger.warn("User not found with email: {}", email);
+            throw e;
+        } catch (Exception e) {
+            logger.error("Unexpected error retrieving user by email: {}. Error: {}", 
+                        email, e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -192,9 +298,25 @@ public class UserController {
      */
     @GetMapping("/username/{username}")
     public ResponseEntity<UserResponse> getUserByUsername(@PathVariable String username) {
-        User user = userService.findUserByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found with username: " + username));
-        return ResponseEntity.ok(convertToUserResponse(user));
+        logger.info("Retrieving user by username: {}", username);
+        
+        try {
+            User user = userService.findUserByUsername(username)
+                    .orElseThrow(() -> new UserNotFoundException("User not found with username: " + username));
+            
+            logger.info("User retrieved by username successfully: ID={}, email={}", 
+                       user.getId(), user.getEmail());
+            
+            return ResponseEntity.ok(convertToUserResponse(user));
+            
+        } catch (UserNotFoundException e) {
+            logger.warn("User not found with username: {}", username);
+            throw e;
+        } catch (Exception e) {
+            logger.error("Unexpected error retrieving user by username: {}. Error: {}", 
+                        username, e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -203,8 +325,17 @@ public class UserController {
      */
     @GetMapping("/exists/email/{email}")
     public ResponseEntity<Boolean> userExistsByEmail(@PathVariable String email) {
-        boolean exists = userService.userExistsByEmail(email);
-        return ResponseEntity.ok(exists);
+        logger.debug("Checking if user exists by email: {}", email);
+        
+        try {
+            boolean exists = userService.userExistsByEmail(email);
+            logger.debug("User exists by email: {} = {}", email, exists);
+            return ResponseEntity.ok(exists);
+        } catch (Exception e) {
+            logger.error("Error checking user existence by email: {}. Error: {}", 
+                        email, e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -213,8 +344,17 @@ public class UserController {
      */
     @GetMapping("/exists/username/{username}")
     public ResponseEntity<Boolean> userExistsByUsername(@PathVariable String username) {
-        boolean exists = userService.userExistsByUsername(username);
-        return ResponseEntity.ok(exists);
+        logger.debug("Checking if user exists by username: {}", username);
+        
+        try {
+            boolean exists = userService.userExistsByUsername(username);
+            logger.debug("User exists by username: {} = {}", username, exists);
+            return ResponseEntity.ok(exists);
+        } catch (Exception e) {
+            logger.error("Error checking user existence by username: {}. Error: {}", 
+                        username, e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -223,8 +363,16 @@ public class UserController {
      */
     @GetMapping("/count")
     public ResponseEntity<Long> getUserCount() {
-        long count = userService.getTotalUserCount();
-        return ResponseEntity.ok(count);
+        logger.info("Retrieving total user count");
+        
+        try {
+            long count = userService.getTotalUserCount();
+            logger.info("Total user count retrieved: {}", count);
+            return ResponseEntity.ok(count);
+        } catch (Exception e) {
+            logger.error("Failed to retrieve user count. Error: {}", e.getMessage());
+            throw e;
+        }
     }
 
     /**
