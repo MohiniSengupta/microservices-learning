@@ -6,6 +6,14 @@ import com.mohini.userservice.dto.UserResponse;
 import com.mohini.userservice.exception.UserNotFoundException;
 import com.mohini.userservice.model.User;
 import com.mohini.userservice.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -18,6 +26,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/users")
 @CrossOrigin(origins = "*") // For development - restrict in production
+@Tag(name = "User Management", description = "APIs for managing users in the system")
 public class UserController {
 
     private final UserService userService;
@@ -31,8 +40,46 @@ public class UserController {
      * Create a new user
      * POST /api/users
      */
+    @Operation(
+        summary = "Create a new user",
+        description = "Creates a new user account with the provided information. Username and email must be unique."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "User created successfully",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = UserResponse.class),
+                examples = @ExampleObject(
+                    name = "Success Response",
+                    value = """
+                        {
+                            "id": 1,
+                            "username": "john_doe",
+                            "email": "john@example.com",
+                            "firstName": "John",
+                            "lastName": "Doe",
+                            "createdAt": "2024-01-15T10:30:00",
+                            "updatedAt": "2024-01-15T10:30:00"
+                        }
+                        """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Invalid input data or validation errors"
+        ),
+        @ApiResponse(
+            responseCode = "409",
+            description = "Username or email already exists"
+        )
+    })
     @PostMapping
-    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
+    public ResponseEntity<UserResponse> createUser(
+        @Parameter(description = "User creation details", required = true)
+        @Valid @RequestBody CreateUserRequest request) {
         // Convert DTO to Entity
         User user = new User(
             request.getUsername(),
@@ -55,8 +102,28 @@ public class UserController {
      * Get user by ID
      * GET /api/users/{id}
      */
+    @Operation(
+        summary = "Get user by ID",
+        description = "Retrieves a specific user by their unique identifier"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "User found successfully",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = UserResponse.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "User not found"
+        )
+    })
     @GetMapping("/{id}")
-    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
+    public ResponseEntity<UserResponse> getUserById(
+        @Parameter(description = "User ID", required = true, example = "1")
+        @PathVariable Long id) {
         User user = userService.findUserById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
         return ResponseEntity.ok(convertToUserResponse(user));
